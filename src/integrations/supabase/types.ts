@@ -14,13 +14,208 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      artifacts: {
+        Row: {
+          file_name: string
+          gdrive_file_id: string
+          gdrive_web_url: string
+          generated_at: string | null
+          generated_by: string
+          id: number
+          opportunity_id: number
+        }
+        Insert: {
+          file_name: string
+          gdrive_file_id: string
+          gdrive_web_url: string
+          generated_at?: string | null
+          generated_by: string
+          id?: number
+          opportunity_id: number
+        }
+        Update: {
+          file_name?: string
+          gdrive_file_id?: string
+          gdrive_web_url?: string
+          generated_at?: string | null
+          generated_by?: string
+          id?: number
+          opportunity_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artifacts_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artifacts_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          created_at: string | null
+          id: number
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      inputs: {
+        Row: {
+          file_name: string
+          gdrive_file_id: string
+          gdrive_web_url: string
+          id: number
+          opportunity_id: number
+          uploaded_at: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          file_name: string
+          gdrive_file_id: string
+          gdrive_web_url: string
+          id?: number
+          opportunity_id: number
+          uploaded_at?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          file_name?: string
+          gdrive_file_id?: string
+          gdrive_web_url?: string
+          id?: number
+          opportunity_id?: number
+          uploaded_at?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inputs_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inputs_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opportunities: {
+        Row: {
+          client_id: number
+          created_at: string | null
+          created_by: string
+          creation_date: string | null
+          deleted_at: string | null
+          id: number
+          name: string
+          responsible_user_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          client_id: number
+          created_at?: string | null
+          created_by: string
+          creation_date?: string | null
+          deleted_at?: string | null
+          id?: number
+          name: string
+          responsible_user_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: number
+          created_at?: string | null
+          created_by?: string
+          creation_date?: string | null
+          deleted_at?: string | null
+          id?: number
+          name?: string
+          responsible_user_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunities_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunities_responsible_user_id_fkey"
+            columns: ["responsible_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          role: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name: string
+          id: string
+          role?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          role?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
