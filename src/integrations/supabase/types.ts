@@ -134,7 +134,8 @@ export type Database = {
           deleted_at: string | null
           id: number
           name: string
-          responsible_user_id: string
+          responsible_name: string | null
+          responsible_user_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -145,7 +146,8 @@ export type Database = {
           deleted_at?: string | null
           id?: number
           name: string
-          responsible_user_id: string
+          responsible_name?: string | null
+          responsible_user_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -156,7 +158,8 @@ export type Database = {
           deleted_at?: string | null
           id?: number
           name?: string
-          responsible_user_id?: string
+          responsible_name?: string | null
+          responsible_user_id?: string | null
           updated_at?: string | null
         }
         Relationships: [

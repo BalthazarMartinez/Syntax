@@ -233,7 +233,7 @@ export default function OpportunityDetail() {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Responsible</p>
-                <p className="text-lg">{opportunity.responsible?.full_name || 'N/A'}</p>
+                <p className="text-lg">{opportunity.responsible_name || opportunity.responsible?.full_name || 'N/A'}</p>
               </div>
             </div>
           </CardContent>

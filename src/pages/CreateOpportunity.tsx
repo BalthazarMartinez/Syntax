@@ -5,18 +5,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
-import type { Client, UserProfile } from '@/types/database';
+import type { Client } from '@/types/database';
 
 const opportunitySchema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters').max(120),
   client: z.string().min(3, 'Client name must be at least 3 characters').max(120),
-  responsibleUserId: z.string().uuid('Please select a responsible user'),
+  responsible: z.string().min(3, 'Responsible name must be at least 3 characters').max(120),
   creationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
 });
 
@@ -24,34 +23,20 @@ export default function CreateOpportunity() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [users, setUsers] = useState<UserProfile[]>([]);
   const [existingClients, setExistingClients] = useState<Client[]>([]);
+  const [existingResponsibles, setExistingResponsibles] = useState<string[]>([]);
   
   const [formData, setFormData] = useState({
     name: '',
     client: '',
-    responsibleUserId: '',
+    responsible: '',
     creationDate: new Date().toISOString().split('T')[0],
   });
 
   useEffect(() => {
-    fetchUsers();
     fetchClients();
+    fetchResponsibles();
   }, []);
-
-  const fetchUsers = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('full_name');
-
-    if (error) {
-      console.error('Error fetching users:', error);
-      return;
-    }
-
-    setUsers((data || []) as UserProfile[]);
-  };
 
   const fetchClients = async () => {
     const { data, error } = await supabase
@@ -65,6 +50,23 @@ export default function CreateOpportunity() {
     }
 
     setExistingClients(data || []);
+  };
+
+  const fetchResponsibles = async () => {
+    const { data, error } = await supabase
+      .from('opportunities')
+      .select('responsible_name')
+      .not('responsible_name', 'is', null)
+      .order('responsible_name');
+
+    if (error) {
+      console.error('Error fetching responsibles:', error);
+      return;
+    }
+
+    // Get unique responsible names
+    const uniqueNames = [...new Set(data.map(item => item.responsible_name).filter(Boolean))] as string[];
+    setExistingResponsibles(uniqueNames);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,7 +104,7 @@ export default function CreateOpportunity() {
         .insert({
           name: formData.name.trim(),
           client_id: clientId,
-          responsible_user_id: formData.responsibleUserId,
+          responsible_name: formData.responsible.trim(),
           creation_date: formData.creationDate,
           created_by: user.id,
         });
@@ -179,22 +181,20 @@ export default function CreateOpportunity() {
 
               <div className="space-y-2">
                 <Label htmlFor="responsible">Responsible *</Label>
-                <Select
-                  value={formData.responsibleUserId}
-                  onValueChange={(value) => setFormData({ ...formData, responsibleUserId: value })}
+                <Input
+                  id="responsible"
+                  value={formData.responsible}
+                  onChange={(e) => setFormData({ ...formData, responsible: e.target.value })}
+                  placeholder="Enter responsible person name"
+                  list="responsibles-list"
                   required
-                >
-                  <SelectTrigger id="responsible">
-                    <SelectValue placeholder="Select responsible user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.full_name} ({u.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  maxLength={120}
+                />
+                <datalist id="responsibles-list">
+                  {existingResponsibles.map((name, index) => (
+                    <option key={index} value={name} />
+                  ))}
+                </datalist>
               </div>
 
               <div className="space-y-2">

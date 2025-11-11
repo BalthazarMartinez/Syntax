@@ -18,7 +18,8 @@ export type Opportunity = {
   id: number;
   name: string;
   client_id: number;
-  responsible_user_id: string;
+  responsible_user_id?: string | null;
+  responsible_name?: string | null;
   creation_date: string;
   created_by: string;
   created_at: string;

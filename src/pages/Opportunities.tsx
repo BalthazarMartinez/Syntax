@@ -87,10 +87,11 @@ export default function Opportunities() {
   const filteredOpportunities = opportunities
     .filter((opp) => {
       const searchLower = searchTerm.toLowerCase();
+      const responsibleName = opp.responsible_name || opp.responsible?.full_name || '';
       return (
         opp.name.toLowerCase().includes(searchLower) ||
         opp.client?.name.toLowerCase().includes(searchLower) ||
-        opp.responsible?.full_name.toLowerCase().includes(searchLower)
+        responsibleName.toLowerCase().includes(searchLower)
       );
     })
     .sort((a, b) => {
@@ -190,7 +191,7 @@ export default function Opportunities() {
                       <TableCell className="font-medium">{opp.id}</TableCell>
                       <TableCell>{opp.name}</TableCell>
                       <TableCell>{opp.client?.name || 'N/A'}</TableCell>
-                      <TableCell>{opp.responsible?.full_name || 'N/A'}</TableCell>
+                      <TableCell>{opp.responsible_name || opp.responsible?.full_name || 'N/A'}</TableCell>
                       <TableCell>{new Date(opp.creation_date).toLocaleDateString()}</TableCell>
                       <TableCell className="text-center">
                         <Badge variant="secondary">
