@@ -147,6 +147,8 @@ export default function OpportunityDetail() {
       formData.append('input_id', inputRecord.id.toString());
 
       const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+      console.log('N8N Webhook URL:', webhookUrl);
+      
       if (!webhookUrl) {
         throw new Error('N8N webhook URL not configured');
       }
@@ -161,6 +163,8 @@ export default function OpportunityDetail() {
       }
 
       const result = await response.json();
+      console.log('N8N Webhook Response:', result);
+      
       const { gdrive_file_id, gdrive_web_url } = result;
 
       // Update database with Google Drive URLs
