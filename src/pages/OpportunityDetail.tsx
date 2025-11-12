@@ -23,6 +23,7 @@ export default function OpportunityDetail() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadFileName, setUploadFileName] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -87,8 +88,29 @@ export default function OpportunityDetail() {
     setLoading(false);
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast.error('Please upload a PDF file');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File size must be less than 10MB');
+        return;
+      }
+      setSelectedFile(file);
+      if (!uploadFileName) {
+        setUploadFileName(file.name);
+      }
+    }
+  };
+
   const handleUploadInput = async () => {
-    if (!user || !id || !uploadFileName.trim()) return;
+    if (!user || !id || !selectedFile) {
+      toast.error('Please select a file to upload');
+      return;
+    }
 
     const opportunityId = parseInt(id);
     if (isNaN(opportunityId)) return;
@@ -96,28 +118,71 @@ export default function OpportunityDetail() {
     setUploadLoading(true);
 
     try {
-      // Simulate file upload (in real app, this would use Supabase Storage)
-      const mockGDriveId = `mock-${Date.now()}`;
-      const mockGDriveUrl = `https://drive.google.com/file/d/${mockGDriveId}/view`;
-
-      const { error } = await supabase
+      const fileName = uploadFileName.trim() || selectedFile.name;
+      
+      // Create pending record in database
+      const { data: inputRecord, error: insertError } = await supabase
         .from('inputs')
         .insert({
           opportunity_id: opportunityId,
-          file_name: uploadFileName.trim(),
-          gdrive_file_id: mockGDriveId,
-          gdrive_web_url: mockGDriveUrl,
+          file_name: fileName,
+          file_size: selectedFile.size,
+          mime_type: selectedFile.type,
+          upload_status: 'processing',
+          gdrive_file_id: 'pending',
+          gdrive_web_url: 'pending',
           uploaded_by: user.id,
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
-      toast.success('Input file uploaded successfully!');
+      // Upload file to n8n webhook
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('id_opp', opportunityId.toString());
+      formData.append('file_name', fileName);
+      formData.append('uploaded_by', user.id);
+      formData.append('input_id', inputRecord.id.toString());
+
+      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+      if (!webhookUrl) {
+        throw new Error('N8N webhook URL not configured');
+      }
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      const { gdrive_file_id, gdrive_web_url } = result;
+
+      // Update database with Google Drive URLs
+      const { error: updateError } = await supabase
+        .from('inputs')
+        .update({
+          gdrive_file_id,
+          gdrive_web_url,
+          upload_status: 'completed',
+        })
+        .eq('id', inputRecord.id);
+
+      if (updateError) throw updateError;
+
+      toast.success('Document uploaded successfully!');
       setUploadDialogOpen(false);
       setUploadFileName('');
+      setSelectedFile(null);
       fetchOpportunityDetails();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to upload input');
+      toast.error(error.message || 'Failed to upload document');
+      console.error('Upload error:', error);
     } finally {
       setUploadLoading(false);
     }
@@ -262,15 +327,29 @@ export default function OpportunityDetail() {
                     <DialogHeader>
                       <DialogTitle>Upload Input File</DialogTitle>
                       <DialogDescription>
-                        Provide a file name for the input document
+                        Upload a PDF document to this opportunity
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="fileName">File Name</Label>
+                        <Label htmlFor="fileInput">Upload Document (PDF)</Label>
+                        <Input
+                          id="fileInput"
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          onChange={handleFileSelect}
+                        />
+                        {selectedFile && (
+                          <p className="text-sm text-muted-foreground">
+                            Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="fileName">Document Name (optional)</Label>
                         <Input
                           id="fileName"
-                          placeholder="document-name.pdf"
+                          placeholder="Leave empty to use file name"
                           value={uploadFileName}
                           onChange={(e) => setUploadFileName(e.target.value)}
                           maxLength={200}
@@ -278,10 +357,17 @@ export default function OpportunityDetail() {
                       </div>
                       <Button
                         onClick={handleUploadInput}
-                        disabled={uploadLoading || !uploadFileName.trim()}
+                        disabled={uploadLoading || !selectedFile}
                         className="w-full"
                       >
-                        {uploadLoading ? 'Uploading...' : 'Upload File'}
+                        {uploadLoading ? (
+                          <>
+                            <span className="animate-spin mr-2">⏳</span>
+                            Uploading to Google Drive...
+                          </>
+                        ) : (
+                          'Upload Document'
+                        )}
                       </Button>
                     </div>
                   </DialogContent>

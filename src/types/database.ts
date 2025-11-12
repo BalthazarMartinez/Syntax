@@ -37,6 +37,10 @@ export type InputFile = {
   gdrive_web_url: string;
   uploaded_by: string;
   uploaded_at: string;
+  file_size?: number | null;
+  mime_type?: string | null;
+  upload_status?: string | null;
+  error_message?: string | null;
 };
 
 export type ArtifactDoc = {

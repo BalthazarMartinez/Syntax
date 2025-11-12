@@ -82,29 +82,41 @@ export type Database = {
       }
       inputs: {
         Row: {
+          error_message: string | null
           file_name: string
+          file_size: number | null
           gdrive_file_id: string
           gdrive_web_url: string
           id: number
+          mime_type: string | null
           opportunity_id: number
+          upload_status: string | null
           uploaded_at: string | null
           uploaded_by: string
         }
         Insert: {
+          error_message?: string | null
           file_name: string
+          file_size?: number | null
           gdrive_file_id: string
           gdrive_web_url: string
           id?: number
+          mime_type?: string | null
           opportunity_id: number
+          upload_status?: string | null
           uploaded_at?: string | null
           uploaded_by: string
         }
         Update: {
+          error_message?: string | null
           file_name?: string
+          file_size?: number | null
           gdrive_file_id?: string
           gdrive_web_url?: string
           id?: number
+          mime_type?: string | null
           opportunity_id?: number
+          upload_status?: string | null
           uploaded_at?: string | null
           uploaded_by?: string
         }
