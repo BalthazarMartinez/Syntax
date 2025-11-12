@@ -4,6 +4,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,6 +25,9 @@ export default function OpportunityDetail() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadFileName, setUploadFileName] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<InputFile | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -223,6 +227,30 @@ export default function OpportunityDetail() {
     }
   };
 
+  const handleDeleteFile = async () => {
+    if (!fileToDelete) return;
+
+    setDeleteLoading(true);
+    try {
+      const { error } = await supabase
+        .from('inputs')
+        .delete()
+        .eq('id', fileToDelete.id);
+
+      if (error) throw error;
+
+      toast.success('File deleted successfully.');
+      setDeleteDialogOpen(false);
+      setFileToDelete(null);
+      await fetchOpportunityDetails();
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete file.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const handleDeleteOpportunity = async () => {
     if (!id || !window.confirm('Are you sure you want to delete this opportunity?')) return;
 
@@ -394,13 +422,27 @@ export default function OpportunityDetail() {
                           {new Date(input.uploaded_at).toLocaleString()}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => window.open(input.gdrive_web_url, '_blank')}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => window.open(input.gdrive_web_url, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setFileToDelete(input);
+                            setDeleteDialogOpen(true);
+                          }}
+                          disabled={deleteLoading}
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -461,6 +503,28 @@ export default function OpportunityDetail() {
           </Card>
         </div>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this file? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteFile}
+              disabled={deleteLoading}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteLoading ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
