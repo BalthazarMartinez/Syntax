@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, FileText, Sparkles, ExternalLink, Trash2 } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Sparkles, ExternalLink, Trash2, RotateCw, CheckCircle, AlertCircle, Clock, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import type { Opportunity, InputFile, ArtifactDoc } from '@/types/database';
 
 export default function OpportunityDetail() {
@@ -28,6 +29,9 @@ export default function OpportunityDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<InputFile | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [retryDialogOpen, setRetryDialogOpen] = useState(false);
+  const [fileToRetry, setFileToRetry] = useState<InputFile | null>(null);
+  const [retryFile, setRetryFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -251,6 +255,104 @@ export default function OpportunityDetail() {
     }
   };
 
+  const handleRetryUpload = async () => {
+    if (!retryFile || !fileToRetry || !user || !id) {
+      toast.error('Please select a file to upload');
+      return;
+    }
+
+    const opportunityId = parseInt(id);
+    if (isNaN(opportunityId)) return;
+
+    setUploadLoading(true);
+
+    try {
+      // Update record to processing status
+      const { error: updateError } = await supabase
+        .from('inputs')
+        .update({
+          file_name: retryFile.name,
+          file_size: retryFile.size,
+          mime_type: retryFile.type,
+          upload_status: 'processing',
+          error_message: null,
+        })
+        .eq('id', fileToRetry.id);
+
+      if (updateError) throw updateError;
+
+      // Upload file to n8n webhook using FormData (same as handleUploadInput)
+      const formData = new FormData();
+      formData.append('file', retryFile);
+      formData.append('id_opp', opportunityId.toString());
+      formData.append('file_name', retryFile.name);
+      formData.append('uploaded_by', user.id);
+      formData.append('input_id', fileToRetry.id.toString());
+
+      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+      console.log('Retrying upload to webhook:', webhookUrl);
+      
+      if (!webhookUrl) {
+        throw new Error('N8N webhook URL not configured');
+      }
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Webhook error response:', errorText);
+        throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Webhook response:', result);
+
+      const { gdrive_file_id, gdrive_web_url } = result;
+
+      if (!gdrive_file_id || !gdrive_web_url) {
+        throw new Error('Webhook response missing required fields');
+      }
+
+      // Update database with Google Drive URLs
+      const { error: finalUpdateError } = await supabase
+        .from('inputs')
+        .update({
+          gdrive_file_id,
+          gdrive_web_url,
+          upload_status: 'completed',
+          error_message: null,
+        })
+        .eq('id', fileToRetry.id);
+
+      if (finalUpdateError) throw finalUpdateError;
+
+      toast.success('File uploaded successfully!');
+      setRetryDialogOpen(false);
+      setRetryFile(null);
+      setFileToRetry(null);
+      fetchOpportunityDetails();
+    } catch (error: any) {
+      console.error('Retry upload error:', error);
+      
+      // Update record with failed status
+      await supabase
+        .from('inputs')
+        .update({
+          upload_status: 'failed',
+          error_message: error.message || 'Failed to upload file to Google Drive',
+        })
+        .eq('id', fileToRetry.id);
+
+      toast.error(error.message || 'Failed to upload file');
+      fetchOpportunityDetails();
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
   const handleDeleteOpportunity = async () => {
     if (!id || !window.confirm('Are you sure you want to delete this opportunity?')) return;
 
@@ -411,40 +513,84 @@ export default function OpportunityDetail() {
                 <p className="text-center text-sm text-muted-foreground">No input files yet</p>
               ) : (
                 <div className="space-y-2">
-                  {inputs.map((input) => (
-                    <div
-                      key={input.id}
-                      className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium">{input.file_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(input.uploaded_at).toLocaleString()}
-                        </p>
+                  {inputs.map((input) => {
+                    const isCompleted = input.upload_status === 'completed';
+                    const isFailed = input.upload_status === 'failed';
+                    const isProcessing = input.upload_status === 'processing';
+
+                    return (
+                      <div
+                        key={input.id}
+                        className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="flex-shrink-0">
+                            {isCompleted && <CheckCircle className="h-5 w-5 text-green-500" />}
+                            {isFailed && <AlertCircle className="h-5 w-5 text-destructive" />}
+                            {isProcessing && <Clock className="h-5 w-5 text-yellow-500 animate-pulse" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium truncate">{input.file_name}</p>
+                              {isCompleted && (
+                                <Badge className="bg-green-500 hover:bg-green-600 text-white">Completed</Badge>
+                              )}
+                              {isFailed && <Badge variant="destructive">Failed</Badge>}
+                              {isProcessing && (
+                                <Badge className="bg-yellow-500 hover:bg-yellow-600 text-yellow-950">Processing</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {input.file_size && `${(input.file_size / 1024).toFixed(2)} KB • `}
+                              {new Date(input.uploaded_at).toLocaleString()}
+                            </p>
+                            {isFailed && input.error_message && (
+                              <p className="text-xs text-destructive mt-1">{input.error_message}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {isFailed && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setFileToRetry(input);
+                                setRetryDialogOpen(true);
+                              }}
+                              disabled={uploadLoading}
+                              className="hover:bg-primary/10 hover:text-primary"
+                              title="Retry upload"
+                            >
+                              <RotateCw className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => window.open(input.gdrive_web_url, '_blank')}
+                            disabled={!isCompleted}
+                            title={isCompleted ? "View in Google Drive" : "File not yet available"}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setFileToDelete(input);
+                              setDeleteDialogOpen(true);
+                            }}
+                            disabled={deleteLoading}
+                            className="hover:bg-destructive/10 hover:text-destructive"
+                            title="Delete file"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => window.open(input.gdrive_web_url, '_blank')}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setFileToDelete(input);
-                            setDeleteDialogOpen(true);
-                          }}
-                          disabled={deleteLoading}
-                          className="hover:bg-destructive/10 hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -525,6 +671,71 @@ export default function OpportunityDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Retry Upload Dialog */}
+      <Dialog open={retryDialogOpen} onOpenChange={setRetryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Retry File Upload</DialogTitle>
+            <DialogDescription>
+              Select a new file to retry uploading for: {fileToRetry?.file_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="retry-file">Select PDF File</Label>
+              <Input
+                id="retry-file"
+                type="file"
+                accept=".pdf"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (file.type !== 'application/pdf') {
+                      toast.error('Please select a PDF file');
+                      return;
+                    }
+                    if (file.size > 10 * 1024 * 1024) {
+                      toast.error('File size must be less than 10MB');
+                      return;
+                    }
+                    setRetryFile(file);
+                  }
+                }}
+                disabled={uploadLoading}
+              />
+              {retryFile && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Selected: {retryFile.name} ({(retryFile.size / 1024).toFixed(2)} KB)
+                </p>
+              )}
+            </div>
+            {fileToRetry?.error_message && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                <p className="text-sm text-destructive font-medium">Previous Error:</p>
+                <p className="text-sm text-destructive/80 mt-1">{fileToRetry.error_message}</p>
+              </div>
+            )}
+            <Button
+              onClick={handleRetryUpload}
+              disabled={uploadLoading || !retryFile}
+              className="w-full"
+            >
+              {uploadLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <RotateCw className="mr-2 h-4 w-4" />
+                  Retry Upload
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
