@@ -1,1 +1,4 @@
 project_id = "yvkretrizpbgyxylfony"
+
+[functions.proxy_n8n_upload]
+verify_jwt = true
