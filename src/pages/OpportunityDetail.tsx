@@ -156,27 +156,19 @@ export default function OpportunityDetail() {
       formData.append('file_name', fileName);
       formData.append('uploaded_by', user.id);
 
-      // Call backend function (server-to-server to n8n)
-      const { data, error: invokeError } = await supabase.functions.invoke(
-        'proxy_n8n_upload',
-        { body: formData }
-      );
+      // Call n8n webhook directly
+      const n8nResponse = await fetch('https://n8n.srv1076252.hstgr.cloud/webhook/syntax-inputs', {
+        method: 'POST',
+        body: formData,
+      });
 
-      if (invokeError) {
-        console.error('[Upload] Backend function error:', invokeError);
-        throw new Error(invokeError.message || 'Failed to upload file');
+      if (!n8nResponse.ok) {
+        const errorText = await n8nResponse.text();
+        console.error('[Upload] n8n webhook error:', errorText);
+        throw new Error(`Upload failed: ${n8nResponse.status} ${errorText}`);
       }
 
-      if (!data) {
-        throw new Error('No response from upload service');
-      }
-
-      // Check for error in response
-      if (data.error) {
-        console.error('[Upload] Upload service error:', data);
-        throw new Error(data.detail || data.error || 'Upload failed');
-      }
-
+      const data = await n8nResponse.json();
       console.log('[Upload] Upload successful:', data);
 
       const { gdrive_file_id, gdrive_web_url } = data;
@@ -305,27 +297,19 @@ export default function OpportunityDetail() {
       formData.append('file_name', retryFile.name);
       formData.append('uploaded_by', user.id);
 
-      // Call backend function (server-to-server to n8n)
-      const { data, error: invokeError } = await supabase.functions.invoke(
-        'proxy_n8n_upload',
-        { body: formData }
-      );
+      // Call n8n webhook directly
+      const n8nResponse = await fetch('https://n8n.srv1076252.hstgr.cloud/webhook/syntax-inputs', {
+        method: 'POST',
+        body: formData,
+      });
 
-      if (invokeError) {
-        console.error('[Retry] Backend function error:', invokeError);
-        throw new Error(invokeError.message || 'Failed to upload file');
+      if (!n8nResponse.ok) {
+        const errorText = await n8nResponse.text();
+        console.error('[Retry] n8n webhook error:', errorText);
+        throw new Error(`Upload failed: ${n8nResponse.status} ${errorText}`);
       }
 
-      if (!data) {
-        throw new Error('No response from upload service');
-      }
-
-      // Check for error in response
-      if (data.error) {
-        console.error('[Retry] Upload service error:', data);
-        throw new Error(data.detail || data.error || 'Upload failed');
-      }
-
+      const data = await n8nResponse.json();
       console.log('[Retry] Upload successful:', data);
 
       const { gdrive_file_id, gdrive_web_url } = data;
