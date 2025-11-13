@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import CreateOpportunity from "./pages/CreateOpportunity";
+import EditOpportunity from "./pages/EditOpportunity";
 import Opportunities from "./pages/Opportunities";
 import OpportunityDetail from "./pages/OpportunityDetail";
 import NotFound from "./pages/NotFound";
@@ -52,6 +53,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <OpportunityDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/opportunities/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <EditOpportunity />
                 </ProtectedRoute>
               }
             />
