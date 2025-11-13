@@ -146,34 +146,44 @@ export default function OpportunityDetail() {
 
       if (insertError) throw insertError;
 
-      // Upload file to n8n webhook
+      console.log(`[Upload] Starting upload for input_id: ${inputRecord.id}`);
+
+      // Prepare FormData for backend function
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('id_opp', opportunityId.toString());
+      formData.append('input_id', inputRecord.id.toString());
+      formData.append('opportunity_id', opportunityId.toString());
       formData.append('file_name', fileName);
       formData.append('uploaded_by', user.id);
-      formData.append('input_id', inputRecord.id.toString());
 
-      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
-      console.log('N8N Webhook URL:', webhookUrl);
-      
-      if (!webhookUrl) {
-        throw new Error('N8N webhook URL not configured');
+      // Call backend function (server-to-server to n8n)
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        'proxy_n8n_upload',
+        { body: formData }
+      );
+
+      if (invokeError) {
+        console.error('[Upload] Backend function error:', invokeError);
+        throw new Error(invokeError.message || 'Failed to upload file');
       }
 
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
+      if (!data) {
+        throw new Error('No response from upload service');
       }
 
-      const result = await response.json();
-      console.log('N8N Webhook Response:', result);
-      
-      const { gdrive_file_id, gdrive_web_url } = result;
+      // Check for error in response
+      if (data.error) {
+        console.error('[Upload] Upload service error:', data);
+        throw new Error(data.detail || data.error || 'Upload failed');
+      }
+
+      console.log('[Upload] Upload successful:', data);
+
+      const { gdrive_file_id, gdrive_web_url } = data;
+
+      if (!gdrive_file_id || !gdrive_web_url) {
+        throw new Error('Upload response missing required fields');
+      }
 
       // Update database with Google Drive URLs
       const { error: updateError } = await supabase
@@ -182,10 +192,14 @@ export default function OpportunityDetail() {
           gdrive_file_id,
           gdrive_web_url,
           upload_status: 'completed',
+          error_message: null,
         })
         .eq('id', inputRecord.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('[Upload] Database update error:', updateError);
+        throw updateError;
+      }
 
       toast.success('Document uploaded successfully!');
       setUploadDialogOpen(false);
@@ -193,8 +207,8 @@ export default function OpportunityDetail() {
       setSelectedFile(null);
       fetchOpportunityDetails();
     } catch (error: any) {
+      console.error('[Upload] Error:', error);
       toast.error(error.message || 'Failed to upload document');
-      console.error('Upload error:', error);
     } finally {
       setUploadLoading(false);
     }
@@ -281,39 +295,43 @@ export default function OpportunityDetail() {
 
       if (updateError) throw updateError;
 
-      // Upload file to n8n webhook using FormData (same as handleUploadInput)
+      console.log(`[Retry] Retrying upload for input_id: ${fileToRetry.id}`);
+
+      // Prepare FormData for backend function
       const formData = new FormData();
       formData.append('file', retryFile);
-      formData.append('id_opp', opportunityId.toString());
+      formData.append('input_id', fileToRetry.id.toString());
+      formData.append('opportunity_id', opportunityId.toString());
       formData.append('file_name', retryFile.name);
       formData.append('uploaded_by', user.id);
-      formData.append('input_id', fileToRetry.id.toString());
 
-      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
-      console.log('Retrying upload to webhook:', webhookUrl);
-      
-      if (!webhookUrl) {
-        throw new Error('N8N webhook URL not configured');
+      // Call backend function (server-to-server to n8n)
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        'proxy_n8n_upload',
+        { body: formData }
+      );
+
+      if (invokeError) {
+        console.error('[Retry] Backend function error:', invokeError);
+        throw new Error(invokeError.message || 'Failed to upload file');
       }
 
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Webhook error response:', errorText);
-        throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+      if (!data) {
+        throw new Error('No response from upload service');
       }
 
-      const result = await response.json();
-      console.log('Webhook response:', result);
+      // Check for error in response
+      if (data.error) {
+        console.error('[Retry] Upload service error:', data);
+        throw new Error(data.detail || data.error || 'Upload failed');
+      }
 
-      const { gdrive_file_id, gdrive_web_url } = result;
+      console.log('[Retry] Upload successful:', data);
+
+      const { gdrive_file_id, gdrive_web_url } = data;
 
       if (!gdrive_file_id || !gdrive_web_url) {
-        throw new Error('Webhook response missing required fields');
+        throw new Error('Upload response missing required fields');
       }
 
       // Update database with Google Drive URLs
@@ -327,7 +345,10 @@ export default function OpportunityDetail() {
         })
         .eq('id', fileToRetry.id);
 
-      if (finalUpdateError) throw finalUpdateError;
+      if (finalUpdateError) {
+        console.error('[Retry] Database update error:', finalUpdateError);
+        throw finalUpdateError;
+      }
 
       toast.success('File uploaded successfully!');
       setRetryDialogOpen(false);
@@ -335,7 +356,7 @@ export default function OpportunityDetail() {
       setFileToRetry(null);
       fetchOpportunityDetails();
     } catch (error: any) {
-      console.error('Retry upload error:', error);
+      console.error('[Retry] Error:', error);
       
       // Update record with failed status
       await supabase
