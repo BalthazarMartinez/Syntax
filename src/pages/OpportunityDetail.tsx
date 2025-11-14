@@ -149,8 +149,6 @@ export default function OpportunityDetail() {
 
       if (insertError) throw insertError;
 
-      console.log(`[Upload] Starting upload for input_id: ${inputRecord.id}`);
-
       // Prepare FormData for backend function
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -159,20 +157,29 @@ export default function OpportunityDetail() {
       formData.append('file_name', fileName);
       formData.append('uploaded_by', user.id);
 
-      // Call n8n webhook directly
-      const n8nResponse = await fetch('https://n8n.srv1076252.hstgr.cloud/webhook/syntax-inputs', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!n8nResponse.ok) {
-        const errorText = await n8nResponse.text();
-        console.error('[Upload] n8n webhook error:', errorText);
-        throw new Error(`Upload failed: ${n8nResponse.status} ${errorText}`);
+      // Call edge function proxy (secure)
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) {
+        throw new Error('Authentication required');
       }
 
-      const data = await n8nResponse.json();
-      console.log('[Upload] Upload successful:', data);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy_n8n_upload`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.session.access_token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Upload failed: ${response.status}`);
+      }
+
+      const data = await response.json();
 
       const { gdrive_file_name, gdrive_web_url } = data;
 
@@ -192,7 +199,6 @@ export default function OpportunityDetail() {
         .eq('id', inputRecord.id);
 
       if (updateError) {
-        console.error('[Upload] Database update error:', updateError);
         throw updateError;
       }
 
@@ -202,7 +208,6 @@ export default function OpportunityDetail() {
       setSelectedFile(null);
       fetchOpportunityDetails();
     } catch (error: any) {
-      console.error('[Upload] Error:', error);
       toast.error(error.message || 'Failed to upload document');
     } finally {
       setUploadLoading(false);

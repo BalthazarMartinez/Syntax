@@ -1,10 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+// Validation schema for webhook response
+const webhookResponseSchema = z.object({
+  gdrive_file_name: z.string()
+    .min(1, 'File name cannot be empty')
+    .max(255, 'File name too long')
+    .regex(/^[^<>:"|?*\\]+$/, 'Invalid characters in file name'),
+  gdrive_web_url: z.string()
+    .url('Invalid URL format')
+    .startsWith('https://drive.google.com/', 'Must be a Google Drive URL')
+    .max(500, 'URL too long')
+});
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -24,8 +37,6 @@ serve(async (req) => {
         error: 'N8N webhook URL not configured' 
       });
     }
-
-    console.log('[proxy_n8n_upload] Starting upload process');
 
     // Parse incoming FormData
     const formIn = await req.formData();
@@ -60,8 +71,6 @@ serve(async (req) => {
     const fileName = formIn.get('file_name') as string || file.name;
     const uploadedBy = formIn.get('uploaded_by') as string || '';
 
-    console.log(`[proxy_n8n_upload] Processing file: ${fileName}, input_id: ${inputId}`);
-
     // Construct FormData for n8n
     const formOut = new FormData();
     formOut.append('file', file, fileName);
@@ -88,15 +97,13 @@ serve(async (req) => {
       clearTimeout(timeoutId);
       
       if (fetchError.name === 'AbortError') {
-        console.error(`[proxy_n8n_upload] Timeout for input_id: ${inputId}`);
         return jsonResponse(504, { 
           error: 'Request to n8n timed out',
           detail: 'The upload took too long to complete'
         });
       }
       
-      console.error(`[proxy_n8n_upload] Fetch error for input_id ${inputId}:`, fetchError);
-      return jsonResponse(500, { 
+      return jsonResponse(500, {
         error: 'Failed to connect to n8n webhook',
         detail: String(fetchError.message || fetchError)
       });
@@ -106,12 +113,10 @@ serve(async (req) => {
 
     // Read response
     const responseText = await n8nResponse.text();
-    console.log(`[proxy_n8n_upload] n8n status: ${n8nResponse.status} for input_id: ${inputId}`);
 
     // Handle n8n error
     if (!n8nResponse.ok) {
-      console.error(`[proxy_n8n_upload] n8n error response:`, responseText);
-      return jsonResponse(n8nResponse.status, { 
+      return jsonResponse(n8nResponse.status, {
         error: 'n8n webhook returned error',
         status: n8nResponse.status,
         detail: responseText.substring(0, 200)
@@ -123,34 +128,34 @@ serve(async (req) => {
     try {
       n8nData = JSON.parse(responseText);
     } catch (parseError) {
-      console.error(`[proxy_n8n_upload] Failed to parse n8n response:`, responseText);
       return jsonResponse(500, { 
         error: 'Invalid JSON response from n8n',
         detail: 'n8n did not return valid JSON'
       });
     }
 
-    // Validate required fields
-    if (!n8nData.gdrive_file_name || !n8nData.gdrive_web_url) {
-      console.error(`[proxy_n8n_upload] Missing required fields in n8n response:`, n8nData);
-      return jsonResponse(500, { 
-        error: 'n8n response missing required fields',
-        detail: 'Expected gdrive_file_name and gdrive_web_url',
-        received: Object.keys(n8nData)
+    // Validate response using Zod schema
+    try {
+      const validatedData = webhookResponseSchema.parse(n8nData);
+      
+      // Return validated response
+      return jsonResponse(200, {
+        success: true,
+        gdrive_file_name: validatedData.gdrive_file_name,
+        gdrive_web_url: validatedData.gdrive_web_url
       });
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        return jsonResponse(400, {
+          error: 'Invalid webhook response format',
+          detail: validationError.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
+        });
+      }
+      throw validationError;
     }
 
-    console.log(`[proxy_n8n_upload] Success for input_id ${inputId}:`, {
-      gdrive_file_name: n8nData.gdrive_file_name,
-      gdrive_web_url: n8nData.gdrive_web_url
-    });
-
-    // Return successful response
-    return jsonResponse(200, n8nData);
-
   } catch (error: any) {
-    console.error('[proxy_n8n_upload] Unexpected error:', error);
-    return jsonResponse(500, { 
+    return jsonResponse(500, {
       error: 'Internal server error',
       detail: String(error.message || error)
     });
