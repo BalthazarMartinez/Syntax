@@ -601,8 +601,8 @@ export default function OpportunityDetail() {
                             size="sm"
                             variant="ghost"
                             onClick={() => window.open(input.gdrive_web_url, '_blank')}
-                            disabled={!isCompleted}
-                            title={isCompleted ? "View in Google Drive" : "File not yet available"}
+                            disabled={!isCompleted || !input.gdrive_web_url || input.gdrive_web_url === 'pending'}
+                            title={isCompleted && input.gdrive_web_url && input.gdrive_web_url !== 'pending' ? "View in Google Drive" : "File not yet available"}
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
