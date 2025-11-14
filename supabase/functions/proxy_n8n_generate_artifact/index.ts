@@ -20,7 +20,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const n8nWebhookUrl = Deno.env.get('VITE_N8N_WEBHOOK_URL');
+    const n8nWebhookUrl = Deno.env.get('VITE_N8N_GENERATE_ARTIFACT_WEBHOOK_URL');
 
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing Supabase configuration');
