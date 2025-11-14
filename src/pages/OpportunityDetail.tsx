@@ -32,6 +32,9 @@ export default function OpportunityDetail() {
   const [retryDialogOpen, setRetryDialogOpen] = useState(false);
   const [fileToRetry, setFileToRetry] = useState<InputFile | null>(null);
   const [retryFile, setRetryFile] = useState<File | null>(null);
+  const [deleteArtifactDialogOpen, setDeleteArtifactDialogOpen] = useState(false);
+  const [artifactToDelete, setArtifactToDelete] = useState<ArtifactDoc | null>(null);
+  const [deleteArtifactLoading, setDeleteArtifactLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -258,6 +261,30 @@ export default function OpportunityDetail() {
       toast.error('Failed to delete file.');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleDeleteArtifact = async () => {
+    if (!artifactToDelete) return;
+
+    setDeleteArtifactLoading(true);
+    try {
+      const { error } = await supabase
+        .from('artifacts')
+        .delete()
+        .eq('id', artifactToDelete.id);
+
+      if (error) throw error;
+
+      toast.success('Artifact deleted successfully.');
+      setDeleteArtifactDialogOpen(false);
+      setArtifactToDelete(null);
+      await fetchOpportunityDetails();
+    } catch (error) {
+      console.error('Delete artifact error:', error);
+      toast.error('Failed to delete artifact.');
+    } finally {
+      setDeleteArtifactLoading(false);
     }
   };
 
@@ -639,13 +666,29 @@ export default function OpportunityDetail() {
                           {new Date(artifact.generated_at).toLocaleString()}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => window.open(artifact.gdrive_web_url, '_blank')}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => window.open(artifact.gdrive_web_url, '_blank')}
+                          title="View in Google Drive"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setArtifactToDelete(artifact);
+                            setDeleteArtifactDialogOpen(true);
+                          }}
+                          disabled={deleteArtifactLoading}
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                          title="Delete artifact"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -672,6 +715,28 @@ export default function OpportunityDetail() {
               className="bg-destructive hover:bg-destructive/90"
             >
               {deleteLoading ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Artifact Confirmation Dialog */}
+      <AlertDialog open={deleteArtifactDialogOpen} onOpenChange={setDeleteArtifactDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Artifact</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this artifact? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteArtifactLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteArtifact}
+              disabled={deleteArtifactLoading}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteArtifactLoading ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
