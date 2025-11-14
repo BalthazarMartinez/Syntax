@@ -17,7 +17,7 @@ export type Database = {
       artifacts: {
         Row: {
           file_name: string
-          gdrive_file_id: string
+          gdrive_file_name: string
           gdrive_web_url: string
           generated_at: string | null
           generated_by: string
@@ -26,7 +26,7 @@ export type Database = {
         }
         Insert: {
           file_name: string
-          gdrive_file_id: string
+          gdrive_file_name: string
           gdrive_web_url: string
           generated_at?: string | null
           generated_by: string
@@ -35,7 +35,7 @@ export type Database = {
         }
         Update: {
           file_name?: string
-          gdrive_file_id?: string
+          gdrive_file_name?: string
           gdrive_web_url?: string
           generated_at?: string | null
           generated_by?: string
@@ -85,7 +85,7 @@ export type Database = {
           error_message: string | null
           file_name: string
           file_size: number | null
-          gdrive_file_id: string
+          gdrive_file_name: string
           gdrive_web_url: string
           id: number
           mime_type: string | null
@@ -98,7 +98,7 @@ export type Database = {
           error_message?: string | null
           file_name: string
           file_size?: number | null
-          gdrive_file_id: string
+          gdrive_file_name: string
           gdrive_web_url: string
           id?: number
           mime_type?: string | null
@@ -111,7 +111,7 @@ export type Database = {
           error_message?: string | null
           file_name?: string
           file_size?: number | null
-          gdrive_file_id?: string
+          gdrive_file_name?: string
           gdrive_web_url?: string
           id?: number
           mime_type?: string | null
