@@ -33,7 +33,7 @@ export type InputFile = {
   id: number;
   opportunity_id: number;
   file_name: string;
-  gdrive_file_id: string;
+  gdrive_file_name: string;
   gdrive_web_url: string;
   uploaded_by: string;
   uploaded_at: string;
@@ -47,7 +47,7 @@ export type ArtifactDoc = {
   id: number;
   opportunity_id: number;
   file_name: string;
-  gdrive_file_id: string;
+  gdrive_file_name: string;
   gdrive_web_url: string;
   generated_by: string;
   generated_at: string;

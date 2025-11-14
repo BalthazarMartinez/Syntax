@@ -131,17 +131,17 @@ serve(async (req) => {
     }
 
     // Validate required fields
-    if (!n8nData.gdrive_file_id || !n8nData.gdrive_web_url) {
+    if (!n8nData.gdrive_file_name || !n8nData.gdrive_web_url) {
       console.error(`[proxy_n8n_upload] Missing required fields in n8n response:`, n8nData);
       return jsonResponse(500, { 
         error: 'n8n response missing required fields',
-        detail: 'Expected gdrive_file_id and gdrive_web_url',
+        detail: 'Expected gdrive_file_name and gdrive_web_url',
         received: Object.keys(n8nData)
       });
     }
 
     console.log(`[proxy_n8n_upload] Success for input_id ${inputId}:`, {
-      gdrive_file_id: n8nData.gdrive_file_id,
+      gdrive_file_name: n8nData.gdrive_file_name,
       gdrive_web_url: n8nData.gdrive_web_url
     });
 

@@ -140,10 +140,10 @@ export default function OpportunityDetail() {
           file_size: selectedFile.size,
           mime_type: selectedFile.type,
           upload_status: 'processing',
-          gdrive_file_id: 'pending',
+          gdrive_file_name: 'pending',
           gdrive_web_url: 'pending',
           uploaded_by: user.id,
-        })
+        } as any)
         .select()
         .single();
 
@@ -174,9 +174,9 @@ export default function OpportunityDetail() {
       const data = await n8nResponse.json();
       console.log('[Upload] Upload successful:', data);
 
-      const { gdrive_file_id, gdrive_web_url } = data;
+      const { gdrive_file_name, gdrive_web_url } = data;
 
-      if (!gdrive_file_id || !gdrive_web_url) {
+      if (!gdrive_file_name || !gdrive_web_url) {
         throw new Error('Upload response missing required fields');
       }
 
@@ -184,7 +184,7 @@ export default function OpportunityDetail() {
       const { error: updateError } = await supabase
         .from('inputs')
         .update({
-          gdrive_file_id,
+          gdrive_file_name,
           gdrive_web_url,
           upload_status: 'completed',
           error_message: null,
@@ -226,10 +226,10 @@ export default function OpportunityDetail() {
         .insert({
           opportunity_id: opportunityId,
           file_name: fileName,
-          gdrive_file_id: mockGDriveId,
+          gdrive_file_name: mockGDriveId,
           gdrive_web_url: mockGDriveUrl,
           generated_by: user.id,
-        });
+        } as any);
 
       if (error) throw error;
 
@@ -339,9 +339,9 @@ export default function OpportunityDetail() {
       const data = await n8nResponse.json();
       console.log('[Retry] Upload successful:', data);
 
-      const { gdrive_file_id, gdrive_web_url } = data;
+      const { gdrive_file_name, gdrive_web_url } = data;
 
-      if (!gdrive_file_id || !gdrive_web_url) {
+      if (!gdrive_file_name || !gdrive_web_url) {
         throw new Error('Upload response missing required fields');
       }
 
@@ -349,7 +349,7 @@ export default function OpportunityDetail() {
       const { error: finalUpdateError } = await supabase
         .from('inputs')
         .update({
-          gdrive_file_id,
+          gdrive_file_name,
           gdrive_web_url,
           upload_status: 'completed',
           error_message: null,
