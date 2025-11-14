@@ -2,3 +2,6 @@ project_id = "yvkretrizpbgyxylfony"
 
 [functions.proxy_n8n_upload]
 verify_jwt = true
+
+[functions.proxy_n8n_generate_artifact]
+verify_jwt = true
