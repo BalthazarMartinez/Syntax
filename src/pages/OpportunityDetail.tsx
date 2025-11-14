@@ -35,6 +35,7 @@ export default function OpportunityDetail() {
   const [deleteArtifactDialogOpen, setDeleteArtifactDialogOpen] = useState(false);
   const [artifactToDelete, setArtifactToDelete] = useState<ArtifactDoc | null>(null);
   const [deleteArtifactLoading, setDeleteArtifactLoading] = useState(false);
+  const [generatingArtifact, setGeneratingArtifact] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -220,28 +221,62 @@ export default function OpportunityDetail() {
     const opportunityId = parseInt(id);
     if (isNaN(opportunityId)) return;
 
+    setGeneratingArtifact(true);
+
     try {
-      // Simulate artifact generation
-      const mockGDriveId = `artifact-${Date.now()}`;
-      const mockGDriveUrl = `https://docs.google.com/document/d/${mockGDriveId}/edit`;
       const fileName = `Artifact for ${opportunity?.name} - ${new Date().toLocaleDateString()}`;
 
-      const { error } = await supabase
+      // Create artifact record with pending status
+      const { data: newArtifact, error: insertError } = await supabase
         .from('artifacts')
         .insert({
           opportunity_id: opportunityId,
           file_name: fileName,
-          gdrive_file_name: mockGDriveId,
-          gdrive_web_url: mockGDriveUrl,
+          gdrive_file_name: 'pending',
+          gdrive_web_url: 'pending',
           generated_by: user.id,
-        } as any);
+        } as any)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
+
+      // Refresh to show the pending artifact
+      await fetchOpportunityDetails();
+
+      toast.success('Generating artifact...');
+
+      // Call edge function to trigger n8n workflow
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy_n8n_generate_artifact`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            opportunity_id: opportunityId,
+            artifact_id: newArtifact.id,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate artifact');
+      }
 
       toast.success('Artifact generated successfully!');
-      fetchOpportunityDetails();
+      await fetchOpportunityDetails();
     } catch (error: any) {
+      console.error('Generate artifact error:', error);
       toast.error(error.message || 'Failed to generate artifact');
+    } finally {
+      setGeneratingArtifact(false);
     }
   };
 
@@ -648,10 +683,20 @@ export default function OpportunityDetail() {
                   size="sm"
                   variant="secondary"
                   onClick={handleGenerateArtifact}
+                  disabled={generatingArtifact}
                   className="gap-2"
                 >
-                  <Sparkles className="h-4 w-4" />
-                  Generate
+                  {generatingArtifact ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generate
+                    </>
+                  )}
                 </Button>
               </div>
             </CardHeader>
@@ -660,42 +705,62 @@ export default function OpportunityDetail() {
                 <p className="text-center text-sm text-muted-foreground">No artifacts yet</p>
               ) : (
                 <div className="space-y-2">
-                  {artifacts.map((artifact) => (
-                    <div
-                      key={artifact.id}
-                      className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium">{artifact.file_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(artifact.generated_at).toLocaleString()}
-                        </p>
+                  {artifacts.map((artifact) => {
+                    const isGenerating = artifact.gdrive_web_url === 'pending';
+                    const hasError = artifact.gdrive_web_url === 'error';
+
+                    return (
+                      <div
+                        key={artifact.id}
+                        className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{artifact.file_name}</p>
+                            {isGenerating && (
+                              <Badge variant="secondary" className="gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Generating
+                              </Badge>
+                            )}
+                            {hasError && (
+                              <Badge variant="destructive" className="gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                Error
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(artifact.generated_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => window.open(artifact.gdrive_web_url, '_blank')}
+                            disabled={isGenerating || hasError}
+                            title={isGenerating ? "Artifact is being generated" : hasError ? "Generation failed" : "View in Google Drive"}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setArtifactToDelete(artifact);
+                              setDeleteArtifactDialogOpen(true);
+                            }}
+                            disabled={deleteArtifactLoading}
+                            className="hover:bg-destructive/10 hover:text-destructive"
+                            title="Delete artifact"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => window.open(artifact.gdrive_web_url, '_blank')}
-                          title="View in Google Drive"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setArtifactToDelete(artifact);
-                            setDeleteArtifactDialogOpen(true);
-                          }}
-                          disabled={deleteArtifactLoading}
-                          className="hover:bg-destructive/10 hover:text-destructive"
-                          title="Delete artifact"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
