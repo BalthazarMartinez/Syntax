@@ -30,9 +30,9 @@ serve(async (req) => {
 
   try {
     // Validate webhook URL is configured
-    const n8nUrl = Deno.env.get('N8N_WEBHOOK_URL');
+    const n8nUrl = Deno.env.get('VITE_N8N_WEBHOOK_URL');
     if (!n8nUrl) {
-      console.error('N8N_WEBHOOK_URL not configured in environment');
+      console.error('VITE_N8N_WEBHOOK_URL not configured in environment');
       return jsonResponse(500, { 
         error: 'N8N webhook URL not configured' 
       });
