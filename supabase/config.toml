@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.proxy_n8n_generate_artifact]
 verify_jwt = true
+
+[functions.get_inputs_by_opportunity]
+verify_jwt = true
